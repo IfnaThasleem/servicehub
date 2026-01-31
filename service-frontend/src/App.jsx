@@ -24,6 +24,7 @@ import OrdersPage from "./pages/OrdersPage";
 import ServicesPage from "./pages/ServicesPage";
 import PaymentPage from "./pages/PaymentPage";
 import ReviewsPage from "./pages/ReviewsPage";
+import ProfilePage from "./pages/ProfilePage";
 
 /* ===== AUTH ===== */
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -32,7 +33,6 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-
         {/* ========= PUBLIC ========= */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
@@ -103,6 +103,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/orders"
           element={
@@ -112,7 +113,16 @@ export default function App() {
           }
         />
 
-        {/* ========= PAYMENT ========= */}
+        {/* ========= PAYMENTS ========= */}
+        <Route
+          path="/payments"
+          element={
+            <ProtectedRoute>
+              <PaymentPage />
+            </ProtectedRoute>
+          }
+        />
+
         <Route
           path="/payment/:orderId"
           element={
@@ -124,6 +134,15 @@ export default function App() {
 
         {/* ========= REVIEWS ========= */}
         <Route
+          path="/reviews"
+          element={
+            <ProtectedRoute>
+              <ReviewsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/reviews/:serviceId"
           element={
             <ProtectedRoute>
@@ -132,9 +151,18 @@ export default function App() {
           }
         />
 
+        {/* ========= PROFILE ========= */}
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <ProfilePage />
+            </ProtectedRoute>
+          }
+        />
+
         {/* ========= FALLBACK ========= */}
         <Route path="*" element={<Navigate to="/" replace />} />
-
       </Routes>
     </BrowserRouter>
   );

@@ -22,6 +22,13 @@ const userSchema = new mongoose.Schema(
       enum: ["user", "vendor", "admin"],
       default: "user",
     },
+
+    isApproved: {
+  type: Boolean,
+  default: false   // admin must approve vendor
+}
+
+
   },
   { timestamps: true }
 );

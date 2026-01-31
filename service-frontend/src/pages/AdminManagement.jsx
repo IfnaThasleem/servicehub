@@ -1,8 +1,15 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
+import { useLocation } from "react-router-dom";
+import Navbar from "../components/Navbar";
 
 export default function AdminManagement() {
-  const [activeTab, setActiveTab] = useState("customers");
+  const location = useLocation();
+
+  /* ================= STATE ================= */
+  const [activeTab, setActiveTab] = useState(
+    location.state?.tab || "customers"
+  );
 
   const [customers, setCustomers] = useState([]);
   const [vendors, setVendors] = useState([]);
@@ -22,52 +29,50 @@ export default function AdminManagement() {
     category: "",
   });
 
-  const token = localStorage.getItem("token");
-  const headers = { Authorization: `Bearer ${token}` };
-
   /* ================= FETCH ALL ================= */
- useEffect(() => {
-  fetchAll();
-}, []);
+  const fetchAll = useCallback(async () => {
+    const token = localStorage.getItem("token");
+    const headers = { Authorization: `Bearer ${token}` };
 
-const fetchAll = async () => {
-  const token = localStorage.getItem("token");
-  const headers = { Authorization: `Bearer ${token}` };
+    try {
+      const [usersRes, ordersRes, servicesRes] = await Promise.all([
+        axios.get("http://localhost:5000/api/users", { headers }),
+        axios.get("http://localhost:5000/api/orders", { headers }),
+        axios.get("http://localhost:5000/api/services", { headers }),
+      ]);
 
-  try {
-    const [usersRes, ordersRes, servicesRes] = await Promise.all([
-      axios.get("http://localhost:5000/api/users", { headers }),
-      axios.get("http://localhost:5000/api/orders", { headers }),
-      axios.get("http://localhost:5000/api/services", { headers }),
-    ]);
+      const users = usersRes.data;
+      setCustomers(users.filter((u) => u.role === "user"));
+      setVendors(users.filter((u) => u.role === "vendor"));
+      setOrders(ordersRes.data);
+      setServices(servicesRes.data);
+    } catch (err) {
+      console.error("Admin fetch error:", err);
+      alert(err.response?.data?.message || "Failed to fetch data");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-    const users = usersRes.data;
-    setCustomers(users.filter((u) => u.role === "user"));
-    setVendors(users.filter((u) => u.role === "vendor"));
-    setOrders(ordersRes.data);
-    setServices(servicesRes.data);
-  } catch (err) {
-    console.error("Admin fetch error:", err);
-    alert(err.response?.data?.message || "Failed to fetch data");
-  } finally {
-    setLoading(false);
-  }
-};
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
 
-
-  /* ================= VENDOR CRUD ================= */
+  /* ================= VENDOR ================= */
   const toggleVendorStatus = async (vendor) => {
     try {
       await axios.put(
         `http://localhost:5000/api/users/${vendor._id}`,
         { isApproved: !vendor.isApproved },
-        { headers }
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        }
       );
-      alert(`Vendor ${vendor.isApproved ? "suspended" : "approved"} successfully`);
       fetchAll();
-    } catch (err) {
-      console.error(err);
-      alert(err.response?.data?.message || "Failed to update vendor status");
+    } catch  {
+      alert("Failed to update vendor");
     }
   };
 
@@ -76,102 +81,88 @@ const fetchAll = async () => {
       await axios.put(
         `http://localhost:5000/api/users/${editingVendor._id}`,
         editingVendor,
-        { headers }
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        }
       );
       setModalOpen(false);
       setEditingVendor(null);
       fetchAll();
-    } catch (err) {
-      console.error(err);
-      alert(err.response?.data?.message || "Failed to edit vendor");
+    } catch {
+      alert("Failed to edit vendor");
     }
   };
 
   const handleDeleteVendor = async (id) => {
     if (!window.confirm("Delete vendor?")) return;
-    try {
-      await axios.delete(`http://localhost:5000/api/users/${id}`, { headers });
-      fetchAll();
-    } catch (err) {
-      console.error(err);
-      alert(err.response?.data?.message || "Failed to delete vendor");
-    }
+    await axios.delete(`http://localhost:5000/api/users/${id}`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    });
+    fetchAll();
   };
 
-  /* ================= SERVICE CRUD ================= */
+  /* ================= SERVICES ================= */
   const handleAddService = async () => {
-    if (!newService.name || !newService.description || !newService.price || !newService.category) {
-      return alert("Fill all service fields");
+    if (!newService.name || !newService.price) {
+      return alert("Fill all fields");
     }
 
-    try {
-      await axios.post(
-        "http://localhost:5000/api/services",
-        { ...newService, price: Number(newService.price), available: true },
-        { headers }
-      );
-      alert("Service added successfully!");
-      setNewService({ name: "", description: "", price: "", category: "" });
-      fetchAll();
-    } catch (err) {
-      console.error(err);
-      alert(err.response?.data?.message || "Failed to add service");
-    }
+    await axios.post(
+      "http://localhost:5000/api/services",
+      { ...newService, price: Number(newService.price) },
+      {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      }
+    );
+
+    setNewService({ name: "", description: "", price: "", category: "" });
+    fetchAll();
   };
 
   const handleEditService = async () => {
-    try {
-      await axios.put(
-        `http://localhost:5000/api/services/${editingService._id}`,
-        { ...editingService, price: Number(editingService.price) },
-        { headers }
-      );
-      alert("Service updated successfully!");
-      setModalOpen(false);
-      setEditingService(null);
-      fetchAll();
-    } catch (err) {
-      console.error(err);
-      alert(err.response?.data?.message || "Failed to update service");
-    }
+    await axios.put(
+      `http://localhost:5000/api/services/${editingService._id}`,
+      editingService,
+      {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      }
+    );
+    setModalOpen(false);
+    setEditingService(null);
+    fetchAll();
   };
 
   const handleDeleteService = async (id) => {
     if (!window.confirm("Delete service?")) return;
-    try {
-      await axios.delete(`http://localhost:5000/api/services/${id}`, { headers });
-      fetchAll();
-    } catch (err) {
-      console.error(err);
-      alert(err.response?.data?.message || "Failed to delete service");
-    }
+    await axios.delete(`http://localhost:5000/api/services/${id}`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+    });
+    fetchAll();
   };
 
-  /* ================= ORDER STATUS ================= */
-  const handleUpdateOrderStatus = async (id, status) => {
-    try {
-      const res = await axios.put(
-        `http://localhost:5000/api/orders/${id}`,
-        { status },
-        { headers }
-      );
-      setOrders(orders.map((o) => (o._id === id ? res.data : o)));
-    } catch (err) {
-      console.error(err);
-      alert(err.response?.data?.message || "Failed to update order");
-    }
+  /* ================= ORDERS ================= */
+  const updateOrderStatus = async (id, status) => {
+    await axios.put(
+      `http://localhost:5000/api/orders/${id}`,
+      { status },
+      {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      }
+    );
+    fetchAll();
   };
 
-  if (loading) return <p style={{ padding: "2rem", color: "white" }}>Loading...</p>;
+  if (loading) return <p style={{ color: "white", padding: "2rem" }}>Loading...</p>;
 
   return (
     <div style={page}>
-      <h1>Admin Management</h1>
-      <p style={{ color: "#94a3b8" }}>
-        Customers (read), Vendors (manage), Orders, Services (manage)
-      </p>
+      <Navbar role="admin" />
 
-      {/* ===== TABS ===== */}
+      <h2>Admin Management</h2>
+
+      {/* TABS */}
       <div style={tabs}>
         {["customers", "vendors", "orders", "services"].map((tab) => (
           <button
@@ -184,7 +175,7 @@ const fetchAll = async () => {
         ))}
       </div>
 
-      {/* ===== CUSTOMERS ===== */}
+      {/* CUSTOMERS */}
       {activeTab === "customers" &&
         customers.map((c) => (
           <div key={c._id} style={card}>
@@ -193,7 +184,7 @@ const fetchAll = async () => {
           </div>
         ))}
 
-      {/* ===== VENDORS ===== */}
+      {/* VENDORS */}
       {activeTab === "vendors" &&
         vendors.map((v) => (
           <div key={v._id} style={card}>
@@ -201,12 +192,11 @@ const fetchAll = async () => {
             <p>{v.email}</p>
             <p>Status: {v.isApproved ? "✅ Approved" : "⛔ Suspended"}</p>
 
-            <button style={smallBtn} onClick={() => toggleVendorStatus(v)}>
+            <button style={btn} onClick={() => toggleVendorStatus(v)}>
               {v.isApproved ? "Suspend" : "Approve"}
             </button>
-
             <button
-              style={smallBtn}
+              style={btn}
               onClick={() => {
                 setEditingVendor(v);
                 setModalOpen(true);
@@ -214,21 +204,21 @@ const fetchAll = async () => {
             >
               Edit
             </button>
-
-            <button style={smallBtnDelete} onClick={() => handleDeleteVendor(v._id)}>
+            <button style={deleteBtn} onClick={() => handleDeleteVendor(v._id)}>
               Delete
             </button>
           </div>
         ))}
 
-      {/* ===== ORDERS ===== */}
+      {/* ORDERS */}
       {activeTab === "orders" &&
         orders.map((o) => (
           <div key={o._id} style={card}>
-            <p>
-              <b>Service:</b> {o.serviceName}
-            </p>
-            <select value={o.status} onChange={(e) => handleUpdateOrderStatus(o._id, e.target.value)}>
+            <b>{o.serviceName}</b>
+            <select
+              value={o.status}
+              onChange={(e) => updateOrderStatus(o._id, e.target.value)}
+            >
               <option value="pending">Pending</option>
               <option value="inProgress">In Progress</option>
               <option value="completed">Completed</option>
@@ -236,34 +226,25 @@ const fetchAll = async () => {
           </div>
         ))}
 
-      {/* ===== SERVICES ===== */}
+      {/* SERVICES */}
       {activeTab === "services" && (
         <>
-          <h3>Add Service</h3>
           <input
             style={input}
-            placeholder="Name"
+            placeholder="Service name"
             value={newService.name}
-            onChange={(e) => setNewService({ ...newService, name: e.target.value })}
-          />
-          <input
-            style={input}
-            placeholder="Description"
-            value={newService.description}
-            onChange={(e) => setNewService({ ...newService, description: e.target.value })}
+            onChange={(e) =>
+              setNewService({ ...newService, name: e.target.value })
+            }
           />
           <input
             style={input}
             placeholder="Price"
             type="number"
             value={newService.price}
-            onChange={(e) => setNewService({ ...newService, price: e.target.value })}
-          />
-          <input
-            style={input}
-            placeholder="Category"
-            value={newService.category}
-            onChange={(e) => setNewService({ ...newService, category: e.target.value })}
+            onChange={(e) =>
+              setNewService({ ...newService, price: e.target.value })
+            }
           />
           <button style={btn} onClick={handleAddService}>
             Add Service
@@ -272,12 +253,9 @@ const fetchAll = async () => {
           {services.map((s) => (
             <div key={s._id} style={card}>
               <b>{s.name}</b>
-              <p>{s.description}</p>
-              <p>Price: {s.price}</p>
-              <p>Category: {s.category}</p>
-
+              <p>Rs {s.price}</p>
               <button
-                style={smallBtn}
+                style={btn}
                 onClick={() => {
                   setEditingService(s);
                   setModalOpen(true);
@@ -285,7 +263,10 @@ const fetchAll = async () => {
               >
                 Edit
               </button>
-              <button style={smallBtnDelete} onClick={() => handleDeleteService(s._id)}>
+              <button
+                style={deleteBtn}
+                onClick={() => handleDeleteService(s._id)}
+              >
                 Delete
               </button>
             </div>
@@ -293,10 +274,10 @@ const fetchAll = async () => {
         </>
       )}
 
-      {/* ===== EDIT MODAL ===== */}
-      {modalOpen && (editingVendor || editingService) && (
+      {/* MODAL */}
+      {modalOpen && (
         <div style={modalOverlay}>
-          <div style={modalContent}>
+          <div style={modal}>
             {editingVendor && (
               <>
                 <h3>Edit Vendor</h3>
@@ -304,14 +285,10 @@ const fetchAll = async () => {
                   style={input}
                   value={editingVendor.name}
                   onChange={(e) =>
-                    setEditingVendor({ ...editingVendor, name: e.target.value })
-                  }
-                />
-                <input
-                  style={input}
-                  value={editingVendor.email}
-                  onChange={(e) =>
-                    setEditingVendor({ ...editingVendor, email: e.target.value })
+                    setEditingVendor({
+                      ...editingVendor,
+                      name: e.target.value,
+                    })
                   }
                 />
                 <button style={btn} onClick={handleEditVendor}>
@@ -327,29 +304,10 @@ const fetchAll = async () => {
                   style={input}
                   value={editingService.name}
                   onChange={(e) =>
-                    setEditingService({ ...editingService, name: e.target.value })
-                  }
-                />
-                <input
-                  style={input}
-                  value={editingService.description}
-                  onChange={(e) =>
-                    setEditingService({ ...editingService, description: e.target.value })
-                  }
-                />
-                <input
-                  style={input}
-                  type="number"
-                  value={editingService.price}
-                  onChange={(e) =>
-                    setEditingService({ ...editingService, price: e.target.value })
-                  }
-                />
-                <input
-                  style={input}
-                  value={editingService.category}
-                  onChange={(e) =>
-                    setEditingService({ ...editingService, category: e.target.value })
+                    setEditingService({
+                      ...editingService,
+                      name: e.target.value,
+                    })
                   }
                 />
                 <button style={btn} onClick={handleEditService}>
@@ -359,7 +317,7 @@ const fetchAll = async () => {
             )}
 
             <button style={btn} onClick={() => setModalOpen(false)}>
-              Cancel
+              Close
             </button>
           </div>
         </div>
@@ -369,14 +327,13 @@ const fetchAll = async () => {
 }
 
 /* ================= STYLES ================= */
-const page = { minHeight: "100vh", background: "#020617", color: "white", padding: "2rem" };
-const tabs = { display: "flex", gap: "1rem", marginBottom: "1.5rem" };
-const tabBtn = { padding: "8px 16px", background: "#1e293b", color: "white", border: "none", borderRadius: "6px" };
+const page = { background: "#020617", minHeight: "100vh", padding: "2rem", color: "white" };
+const tabs = { display: "flex", gap: "1rem", marginBottom: "1rem" };
+const tabBtn = { background: "#1e293b", padding: "8px 14px", border: "none", color: "white" };
 const activeTabBtn = { ...tabBtn, background: "#4f7cff" };
 const card = { background: "#0f172a", padding: "1rem", borderRadius: "10px", marginBottom: "1rem" };
-const input = { width: "100%", padding: "8px", marginBottom: "8px", borderRadius: "6px", background: "#1e293b", color: "white", border: "1px solid #334155" };
-const btn = { padding: "10px", background: "#4f7cff", border: "none", borderRadius: "6px", color: "white", marginRight: "8px" };
-const smallBtn = { ...btn, padding: "6px 10px" };
-const smallBtnDelete = { ...smallBtn, background: "#ef4444" };
-const modalOverlay = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", justifyContent: "center", alignItems: "center" };
-const modalContent = { background: "#0f172a", padding: "2rem", borderRadius: "12px", width: "400px" };
+const btn = { background: "#4f7cff", padding: "6px 10px", border: "none", color: "white", marginRight: "6px" };
+const deleteBtn = { ...btn, background: "#ef4444" };
+const input = { width: "100%", marginBottom: "8px", padding: "8px", background: "#1e293b", border: "1px solid #334155", color: "white" };
+const modalOverlay = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", justifyContent: "center", alignItems: "center" };
+const modal = { background: "#0f172a", padding: "2rem", borderRadius: "12px", width: "350px" };
